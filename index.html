@@ -351,8 +351,9 @@ section{position:relative}
 .method-grid{display:grid;grid-template-columns:1fr clamp(280px,34vw,460px);column-gap:clamp(2rem,5vw,5rem);row-gap:clamp(2.5rem,6vw,4.5rem);align-items:start}
 .method-grid .sec-head{grid-column:1;grid-row:1}
 .method-body{grid-column:1;grid-row:2}
-.method-video{grid-column:2;grid-row:1 / span 2;align-self:start;position:sticky;top:90px;width:clamp(280px,34vw,460px)}
-.method-video video{display:block;width:100%;height:auto;object-fit:contain;-webkit-mask-image:radial-gradient(circle at center,#000 32%,transparent 77%);mask-image:radial-gradient(circle at center,#000 32%,transparent 77%)}
+.method-video{grid-column:2;grid-row:1 / span 2;align-self:start;position:sticky;top:90px;width:clamp(280px,34vw,460px);display:grid;-webkit-mask-image:radial-gradient(circle at center,#000 32%,transparent 77%);mask-image:radial-gradient(circle at center,#000 32%,transparent 77%)}
+.method-video-el{grid-area:1 / 1;display:block;width:100%;height:auto;object-fit:contain;z-index:0}
+.method-video-el.is-top{z-index:1}
 @media(max-width:880px){
   .method-grid{grid-template-columns:1fr;column-gap:0;row-gap:2rem}
   .method-grid .sec-head,.method-body,.method-video{grid-column:auto;grid-row:auto}
@@ -831,9 +832,8 @@ section{position:relative}
       </div>
     </header>
     <div class="method-video reveal">
-      <video id="methodVideo" autoplay muted playsinline>
-        <source src="hero/magnific_it-must-go-from-one-frame-to-the-other-there-shoul_seedance_480p_1-1_24fps_13039.mp4" type="video/mp4">
-      </video>
+      <video class="method-video-el is-top" data-method-video="a" autoplay muted playsinline preload="auto"></video>
+      <video class="method-video-el" data-method-video="b" muted playsinline preload="auto"></video>
     </div>
     <div class="method-body">
     <p class="intro reveal">Geometry developed from analysis — basic volumes defined by code and site, then modified by the project's own parameters until they harmonise into something sculptural.</p>
@@ -1003,18 +1003,66 @@ section{position:relative}
 
   /* ---- looping sequential video playback (1 → 2 → 1 → 2 …) ---- */
   (function(){
-    var video = document.getElementById('methodVideo');
-    if(!video) return;
-    var videos = [
+    var wrap = document.querySelector('.method-video');
+    if(!wrap) return;
+    var a = wrap.querySelector('[data-method-video="a"]');
+    var b = wrap.querySelector('[data-method-video="b"]');
+    if(!a || !b) return;
+
+    var sources = [
       'hero/magnific_it-must-go-from-one-frame-to-the-other-there-shoul_seedance_480p_1-1_24fps_13039.mp4',
       'hero/magnific_what-i-want-to-have-happen-is-to-see-these-buildin_seedance_480p_1-1_24fps_13040.mp4'
     ];
-    var idx = 0;
-    video.addEventListener('ended', function(){
-      idx = (idx + 1) % videos.length;
-      video.src = videos[idx];
-      video.play();
+    var layers = [a, b];
+    var active = 0;
+    var nextSource = 1;
+
+    function setSrc(el, i){
+      if(el.dataset.srcIndex === String(i)) return;
+      el.src = sources[i];
+      el.dataset.srcIndex = String(i);
+      el.load();
+    }
+
+    function bringToFront(el){
+      layers.forEach(function(v){ v.classList.remove('is-top'); });
+      el.classList.add('is-top');
+    }
+
+    function playNext(){
+      var incoming = layers[1 - active];
+      var incomingIdx = nextSource;
+
+      setSrc(incoming, incomingIdx);
+
+      function startIncoming(){
+        function onPlaying(){
+          incoming.removeEventListener('playing', onPlaying);
+          bringToFront(incoming);
+          active = 1 - active;
+          nextSource = (incomingIdx + 1) % sources.length;
+          setSrc(layers[1 - active], nextSource);
+        }
+        incoming.addEventListener('playing', onPlaying);
+        var playPromise = incoming.play();
+        if(playPromise && playPromise.catch) playPromise.catch(function(){});
+      }
+
+      if(incoming.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) startIncoming();
+      else incoming.addEventListener('canplay', function once(){
+        incoming.removeEventListener('canplay', once);
+        startIncoming();
+      }, {once:true});
+    }
+
+    layers.forEach(function(v){
+      v.addEventListener('ended', playNext);
     });
+
+    setSrc(a, 0);
+    setSrc(b, 1);
+    bringToFront(a);
+    a.play();
   })();
 
   /* ---- scroll: nav + progress + parallax ---- */
